@@ -13,9 +13,13 @@ def load_model(model: nn.Module, path: str):
     packed_modules_mapping = getattr(model, "packed_modules_mapping", {})
     for file in glob(os.path.join(path, "*.safetensors")):
         with safe_open(file, "pt", "cpu") as f:
+            # weight_name 的值示例：model.layers.0.self_attn.q_proj.weight
             for weight_name in f.keys():
+                # k 的值示例：q_proj
                 for k in packed_modules_mapping:
                     if k in weight_name:
+                        # 此时 v 是 qkv_proj
+                        # 此时 shard_id 是 q
                         v, shard_id = packed_modules_mapping[k]
                         param_name = weight_name.replace(k, v)
                         param = model.get_parameter(param_name)
@@ -24,5 +28,7 @@ def load_model(model: nn.Module, path: str):
                         break
                 else:
                     param = model.get_parameter(weight_name)
-                    weight_loader = getattr(param, "weight_loader", default_weight_loader)
+                    weight_loader = getattr(
+                        param, "weight_loader", default_weight_loader
+                    )
                     weight_loader(param, f.get_tensor(weight_name))

@@ -2,12 +2,13 @@ import torch
 from torch import nn
 
 
+# 对输入张量进行 RMSNorm 归一化
 class RMSNorm(nn.Module):
 
     def __init__(
         self,
-        hidden_size: int,
-        eps: float = 1e-6,
+        hidden_size: int,  # 输入向量的维度 (例如 4096)
+        eps: float = 1e-6,  # 数值稳定性常数 (默认 0.000001)
     ) -> None:
         super().__init__()
         self.eps = eps
