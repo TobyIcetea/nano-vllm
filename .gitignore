@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Ascend
+kernel_meta
+fusion_result.json
+
 # C extensions
 *.so
 

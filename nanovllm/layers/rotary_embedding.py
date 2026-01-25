@@ -38,7 +38,6 @@ class RotaryEmbedding(nn.Module):
         self.register_buffer("cos_sin_cache", cache, persistent=False)
 
     # 对输入张量进行旋转位置编码
-    @torch.compile
     def forward(
         self,
         positions: torch.Tensor,

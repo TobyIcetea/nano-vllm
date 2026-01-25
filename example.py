@@ -5,7 +5,7 @@ from transformers import AutoTokenizer
 
 
 def main():
-    path = os.path.expanduser("/data/xbw/models/Qwen3-8B")
+    path = os.path.expanduser("/root/autodl-tmp/qwen3-0.6B")
     tokenizer = AutoTokenizer.from_pretrained(path)
     llm = LLM(path, enforce_eager=True, tensor_parallel_size=1)
 

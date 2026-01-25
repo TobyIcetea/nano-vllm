@@ -8,7 +8,6 @@ class Sampler(nn.Module):
     def __init__(self):
         super().__init__()
 
-    @torch.compile
     def forward(self, logits: torch.Tensor, temperatures: torch.Tensor):
         logits = logits.float() / temperatures.unsqueeze(-1)
         probs = torch.softmax(logits, dim=-1)

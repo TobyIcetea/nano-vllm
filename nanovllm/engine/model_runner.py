@@ -299,7 +299,7 @@ class ModelRunner:
         ).npu(non_blocking=True)
         context_lens = torch.tensor(
             context_lens, dtype=torch.int32, pin_memory=True
-        ).cuda(non_blocking=True)
+        ).npu(non_blocking=True)
         # 准备页表
         block_tables = self.prepare_block_tables(seqs)
         # 设置上下文
