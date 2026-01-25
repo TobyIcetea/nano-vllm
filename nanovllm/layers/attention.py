@@ -5,28 +5,35 @@ import torch.nn.functional as F
 from nanovllm.utils.context import get_context
 from nanovllm.utils.logger import logger
 
+
 def store_kvcache(
-        key: torch.Tensor,  # [N, G, D]
-        value: torch.Tensor,
-        k_cache: torch.Tensor,  # [num_blocks, block_size, G, D]
-        v_cache: torch.Tensor,
-        slot_mapping: torch.Tensor,  # [N]
-        kvcache_block_size: int = 256,
+    key: torch.Tensor,  # [N, G, D]
+    value: torch.Tensor,
+    k_cache: torch.Tensor,  # [num_blocks, block_size, G, D]
+    v_cache: torch.Tensor,
+    slot_mapping: torch.Tensor,  # [N]
+    kvcache_block_size: int = 256,
 ):
     N, G, D = key.shape
     num_blocks, block_size, cache_G, cache_D = k_cache.shape
-    assert G == cache_G and D == cache_D, f"KV维度不匹配：输入(G={G},D={D})，缓存(G={cache_G},D={cache_D})"
-    assert slot_mapping.shape == (N,), f"slot_mapping维度错误：期望(N,)，实际{slot_mapping.shape}"
+    assert (
+        G == cache_G and D == cache_D
+    ), f"KV维度不匹配：输入(G={G},D={D})，缓存(G={cache_G},D={cache_D})"
+    assert slot_mapping.shape == (
+        N,
+    ), f"slot_mapping维度错误：期望(N,)，实际{slot_mapping.shape}"
 
     # 1. 筛选有效slot（排除slot=-1的情况）
-    valid_mask = (slot_mapping != -1)  # [N,] 布尔张量
+    valid_mask = slot_mapping != -1  # [N,] 布尔张量
 
     # 2. 向量化计算block索引
     all_block_idx = slot_mapping // kvcache_block_size  # [N,]
     all_block_inner_idx = slot_mapping % kvcache_block_size  # [N,]
 
     # 3. 筛选在缓存范围内的元素
-    in_range_mask = (all_block_idx < num_blocks) & (all_block_inner_idx < block_size)  # [N,]
+    in_range_mask = (all_block_idx < num_blocks) & (
+        all_block_inner_idx < block_size
+    )  # [N,]
     final_mask = valid_mask & in_range_mask  # [N,] 最终有效掩码
 
     # 4. 生成静态范围索引，再用掩码筛选（替代torch.nonzero，避免动态形状）
@@ -42,25 +49,34 @@ def store_kvcache(
     valid_value = value[valid_i]  # [M, G, D]
 
     # 6. 批量更新缓存
-    k_cache[valid_block_idx, valid_block_inner_idx] = valid_key.to(k_cache.dtype, non_blocking=True)
-    v_cache[valid_block_idx, valid_block_inner_idx] = valid_value.to(v_cache.dtype, non_blocking=True)
+    k_cache[valid_block_idx, valid_block_inner_idx] = valid_key.to(
+        k_cache.dtype, non_blocking=True
+    )
+    v_cache[valid_block_idx, valid_block_inner_idx] = valid_value.to(
+        v_cache.dtype, non_blocking=True
+    )
+
 
 def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
     if n_rep == 1:
         return hidden_states
     seq_len, G, D = hidden_states.shape
     assert G * n_rep <= 32, f"Q头数过多（{G * n_rep}），可能导致溢出"  # 防护性校验
-    return hidden_states.unsqueeze(2).expand(seq_len, G, n_rep, D).reshape(seq_len, G * n_rep, D)
+    return (
+        hidden_states.unsqueeze(2)
+        .expand(seq_len, G, n_rep, D)
+        .reshape(seq_len, G * n_rep, D)
+    )
 
 
 class Attention(nn.Module):
     def __init__(
-            self,
-            num_heads: int,  # 从模型权重反推的真实Q头数
-            head_dim: int,  # 从模型权重反推的真实头维度
-            scale,
-            num_kv_heads: int,  # 从模型权重反推的真实KV头数
-            kvcache_block_size: int = 256,
+        self,
+        num_heads: int,  # 从模型权重反推的真实Q头数
+        head_dim: int,  # 从模型权重反推的真实头维度
+        scale,
+        num_kv_heads: int,  # 从模型权重反推的真实KV头数
+        kvcache_block_size: int = 256,
     ):
         super().__init__()
         # 关键：用模型权重的真实维度，而非配置文件标注
@@ -70,10 +86,14 @@ class Attention(nn.Module):
         self.kvcache_block_size = kvcache_block_size
 
         # 强制维度对齐（基于真实权重）
-        assert self.num_heads % self.num_kv_heads == 0, f"Q头数{num_heads}必须是KV头数{num_kv_heads}的整数倍"
+        assert (
+            self.num_heads % self.num_kv_heads == 0
+        ), f"Q头数{num_heads}必须是KV头数{num_kv_heads}的整数倍"
         self.num_rep = self.num_heads // self.num_kv_heads
         # 仅内部计算scale，删除外部传入（避免重复缩放）
-        self.scale = 1.0 / torch.sqrt(torch.tensor(self.head_dim, dtype=torch.float32)).to(torch.bfloat16)
+        self.scale = 1.0 / torch.sqrt(
+            torch.tensor(self.head_dim, dtype=torch.float32)
+        ).to(torch.bfloat16)
 
         # 初始化KV缓存（4维）
         self.k_cache = torch.tensor([])
@@ -84,7 +104,7 @@ class Attention(nn.Module):
             (num_blocks, self.kvcache_block_size, self.num_kv_heads, self.head_dim),
             device=device,
             dtype=dtype,
-            requires_grad=False
+            requires_grad=False,
         )
         self.v_cache = torch.zeros_like(self.k_cache)
 
@@ -93,11 +113,20 @@ class Attention(nn.Module):
         max_val = x.max().item()
         min_val = x.min().item()
         if max_val > 1e4 or min_val < -1e4:
-            logger.warning(f"警告：{name}数值溢出（max={max_val:.2f}, min={min_val:.2f}）")
+            logger.warning(
+                f"警告：{name}数值溢出（max={max_val:.2f}, min={min_val:.2f}）"
+            )
         return x
 
-    def _prefill_attn(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, cu_seqlens_q, cu_seqlens_k,
-                      device: torch.device):
+    def _prefill_attn(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        cu_seqlens_q,
+        cu_seqlens_k,
+        device: torch.device,
+    ):
         batch_size = len(cu_seqlens_q) - 1
         outputs = []
 
@@ -125,7 +154,10 @@ class Attention(nn.Module):
 
             # 因果掩码（适配Lq≠Lk场景）
             Lq, Lk = q_seq.shape[0], k_seq.shape[0]
-            mask = torch.triu(torch.full((Lq, Lk), float('-inf'), device=device, dtype=attn.dtype), diagonal=1)
+            mask = torch.triu(
+                torch.full((Lq, Lk), float("-inf"), device=device, dtype=attn.dtype),
+                diagonal=1,
+            )
             attn = attn + mask.unsqueeze(0)
 
             # Softmax（限制数值范围，避免溢出）
@@ -137,7 +169,9 @@ class Attention(nn.Module):
 
         return torch.cat(outputs, dim=0)
 
-    def _decode_attn(self, q: torch.Tensor, context_lens, block_tables, device: torch.device):
+    def _decode_attn(
+        self, q: torch.Tensor, context_lens, block_tables, device: torch.device
+    ):
         batch_size = q.shape[0]
         q = q.reshape(batch_size, self.num_heads, self.head_dim)  # [B, H, D]
         self._check_numeric_range(q, "decode_q")
@@ -164,7 +198,9 @@ class Attention(nn.Module):
                 v_history_list.append(v_block)
 
             if not k_history_list:
-                k_history = torch.zeros((0, self.num_kv_heads, self.head_dim), device=device, dtype=q.dtype)
+                k_history = torch.zeros(
+                    (0, self.num_kv_heads, self.head_dim), device=device, dtype=q.dtype
+                )
                 v_history = torch.zeros_like(k_history)
             else:
                 k_history = torch.cat(k_history_list, dim=0)[:history_len]  # [Lk, G, D]
@@ -188,15 +224,25 @@ class Attention(nn.Module):
 
         return torch.cat(outputs, dim=0)
 
-    def _ensure_cache_initialized(self, context, device: torch.device, dtype: torch.dtype):
+    def _ensure_cache_initialized(
+        self, context, device: torch.device, dtype: torch.dtype
+    ):
         if self.k_cache.numel() == 0 and hasattr(context, "num_kvcache_blocks"):
             self._init_cache(context.num_kvcache_blocks, device, dtype)
 
     def _update_cache(self, context, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
         if self.k_cache.numel() > 0 and self.v_cache.numel() > 0:
-            assert context.slot_mapping.numel() == q.shape[
-                0], f"slot_mapping长度（{context.slot_mapping.numel()}）与Q长度（{q.shape[0]}）不匹配"
-            store_kvcache(k, v, self.k_cache, self.v_cache, context.slot_mapping, self.kvcache_block_size)
+            assert (
+                context.slot_mapping.numel() == q.shape[0]
+            ), f"slot_mapping长度（{context.slot_mapping.numel()}）与Q长度（{q.shape[0]}）不匹配"
+            store_kvcache(
+                k,
+                v,
+                self.k_cache,
+                self.v_cache,
+                context.slot_mapping,
+                self.kvcache_block_size,
+            )
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
         context = get_context()
@@ -207,16 +253,24 @@ class Attention(nn.Module):
         self._update_cache(context, q, k, v)
 
         # 核心维度校验（确保QKV与权重匹配）
-        assert q.shape == (k.shape[0], self.num_heads,
-                           self.head_dim), f"Q形状错误：期望({k.shape[0]}, {self.num_heads}, {self.head_dim})，实际{q.shape}"
-        assert k.shape == (k.shape[0], self.num_kv_heads,
-                           self.head_dim), f"K形状错误：期望({k.shape[0]}, {self.num_kv_heads}, {self.head_dim})，实际{k.shape}"
+        assert q.shape == (
+            k.shape[0],
+            self.num_heads,
+            self.head_dim,
+        ), f"Q形状错误：期望({k.shape[0]}, {self.num_heads}, {self.head_dim})，实际{q.shape}"
+        assert k.shape == (
+            k.shape[0],
+            self.num_kv_heads,
+            self.head_dim,
+        ), f"K形状错误：期望({k.shape[0]}, {self.num_kv_heads}, {self.head_dim})，实际{k.shape}"
         assert v.shape == k.shape, f"V形状错误：期望{k.shape}，实际{v.shape}"
 
         # 分阶段计算
         if context.is_prefill:
             assert context.cu_seqlens_q is not None and context.cu_seqlens_k is not None
-            o = self._prefill_attn(q, k, v, context.cu_seqlens_q, context.cu_seqlens_k, device)
+            o = self._prefill_attn(
+                q, k, v, context.cu_seqlens_q, context.cu_seqlens_k, device
+            )
         else:
             assert context.context_lens is not None and context.block_tables is not None
             o = self._decode_attn(q, context.context_lens, context.block_tables, device)
@@ -224,7 +278,9 @@ class Attention(nn.Module):
         o = o.reshape(o.shape[0], -1)  # [seq_len/B, H, D] → [seq_len/B, H×D]
 
         expected_shape = (q.shape[0], self.num_heads * self.head_dim)
-        assert o.shape == expected_shape, f"输出形状错误：期望{expected_shape}，实际{o.shape}"
+        assert (
+            o.shape == expected_shape
+        ), f"输出形状错误：期望{expected_shape}，实际{o.shape}"
         self._check_numeric_range(o, "attention_output")
 
         return o

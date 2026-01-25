@@ -10,6 +10,7 @@ from nanovllm.models.qwen3 import Qwen3ForCausalLM
 from nanovllm.layers.sampler import Sampler
 from nanovllm.utils.context import set_context, get_context, reset_context
 from nanovllm.utils.loader import load_model
+from nanovllm.utils.logger import logger
 
 
 class ModelRunner:
@@ -326,7 +327,9 @@ class ModelRunner:
     def run_model(
         self, input_ids: torch.Tensor, positions: torch.Tensor, is_prefill: bool
     ):
-        logger.info(f"{'prefill' if is_prefill else 'decode'} execute tokens: {len(input_ids)}")
+        logger.info(
+            f"{'prefill' if is_prefill else 'decode'} execute tokens: {len(input_ids)}"
+        )
         if is_prefill or self.enforce_eager or input_ids.size(0) > 512:
             # Eager Mode
             # - prefill 阶段，因为 prefill 的输入的形状不固定，动态性比较强，不适合使用固定形状的 Graph
