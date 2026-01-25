@@ -4,7 +4,6 @@ from torch import nn
 
 # 对输入张量进行 RMSNorm 归一化
 class RMSNorm(nn.Module):
-
     def __init__(
         self,
         hidden_size: int,  # 输入向量的维度 (例如 4096)

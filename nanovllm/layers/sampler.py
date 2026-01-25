@@ -4,7 +4,6 @@ from torch import nn
 
 # 为 batch 中的每个句子，根据 logits 和 temperature 采样一个 token
 class Sampler(nn.Module):
-
     def __init__(self):
         super().__init__()
 

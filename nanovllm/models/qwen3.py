@@ -16,7 +16,6 @@ from nanovllm.layers.embed_head import VocabParallelEmbedding, ParallelLMHead
 
 
 class Qwen3Attention(nn.Module):
-
     def __init__(
         self,
         hidden_size: int,
@@ -46,7 +45,7 @@ class Qwen3Attention(nn.Module):
         self.head_dim = head_dim or hidden_size // self.total_num_heads
         self.q_size = self.num_heads * self.head_dim
         self.kv_size = self.num_kv_heads * self.head_dim
-        self.scaling = self.head_dim**-0.5
+        self.scaling = self.head_dim ** -0.5
 
         # 将输入 X 投影成 Q K V
         self.qkv_proj = QKVParallelLinear(
@@ -101,7 +100,6 @@ class Qwen3Attention(nn.Module):
 
 
 class Qwen3MLP(nn.Module):
-
     def __init__(
         self,
         hidden_size: int,
@@ -133,7 +131,6 @@ class Qwen3MLP(nn.Module):
 
 
 class Qwen3DecoderLayer(nn.Module):
-
     def __init__(
         self,
         config: Qwen3Config,
@@ -181,7 +178,6 @@ class Qwen3DecoderLayer(nn.Module):
 
 
 class Qwen3Model(nn.Module):
-
     def __init__(
         self,
         config: Qwen3Config,

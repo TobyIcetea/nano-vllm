@@ -9,7 +9,6 @@ from nanovllm.utils.context import get_context
 # 让多张显卡合作存储和计算 Embedding 层的权重
 # 解决单卡显存可能放不下超大词表的问题
 class VocabParallelEmbedding(nn.Module):
-
     def __init__(
         self,
         num_embeddings: int,
@@ -73,7 +72,6 @@ class VocabParallelEmbedding(nn.Module):
 
 
 class ParallelLMHead(VocabParallelEmbedding):
-
     def __init__(
         self,
         num_embeddings: int,

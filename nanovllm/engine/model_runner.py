@@ -1,4 +1,5 @@
 import pickle
+import time
 import torch
 import torch.distributed as dist
 from multiprocessing.synchronize import Event
@@ -14,7 +15,6 @@ from nanovllm.utils.logger import logger
 
 
 class ModelRunner:
-
     def __init__(self, config: Config, rank: int, event: Event | list[Event]):
         self.config = config
         hf_config = config.hf_config
@@ -23,6 +23,11 @@ class ModelRunner:
         self.world_size = config.tensor_parallel_size
         self.rank = rank
         self.event = event
+        self.run_log_interval_s = 5.0
+        self.last_run_log_ts = 0.0
+        self.graph_api = self._select_graph_api()
+        if self.graph_api is None:
+            self.enforce_eager = True
 
         dist.init_process_group(
             "hccl", "tcp://localhost:2333", world_size=self.world_size, rank=rank
@@ -43,7 +48,7 @@ class ModelRunner:
 
         if self.world_size > 1:
             if rank == 0:
-                self.shm = SharedMemory(name="nanovllm", create=True, size=2**20)
+                self.shm = SharedMemory(name="nanovllm", create=True, size=2 ** 20)
                 dist.barrier()
             else:
                 dist.barrier()
@@ -327,9 +332,12 @@ class ModelRunner:
     def run_model(
         self, input_ids: torch.Tensor, positions: torch.Tensor, is_prefill: bool
     ):
-        logger.info(
-            f"{'prefill' if is_prefill else 'decode'} execute tokens: {len(input_ids)}"
-        )
+        now = time.monotonic()
+        if self.rank == 0 and now - self.last_run_log_ts >= self.run_log_interval_s:
+            logger.info(
+                f"{'prefill' if is_prefill else 'decode'} execute tokens: {len(input_ids)}"
+            )
+            self.last_run_log_ts = now
         if is_prefill or self.enforce_eager or input_ids.size(0) > 512:
             # Eager Mode
             # - prefill 阶段，因为 prefill 的输入的形状不固定，动态性比较强，不适合使用固定形状的 Graph
@@ -420,7 +428,7 @@ class ModelRunner:
         # 最大的显存块先申请下来，后面的小图就可以复用这块显存（通过 graph_tool）
         # 避免显存碎片化和重复申请
         for bs in reversed(self.graph_bs):
-            graph = torch.cuda.CUDAGraph()
+            graph = self.graph_api.CUDAGraph()
 
             # 设置 context，本次录制使用的是前面申请的那些静态 Tensor 的前 batch size 个元素
             set_context(
@@ -434,14 +442,14 @@ class ModelRunner:
             outputs[:bs] = self.model(input_ids[:bs], positions[:bs])  # warmup
 
             # 正式录制：self.graph_pool 保证了所有图共享同一块私有显存池
-            with torch.cuda.graph(graph, self.graph_pool):
+            with self.graph_api.graph(graph, self.graph_pool):
                 outputs[:bs] = self.model(input_ids[:bs], positions[:bs])  # capture
 
             # 如果是第一次（最大的那个 Batch Size），就把它的内存池保存下来，给后面的小图复用
             if self.graph_pool is None:
                 self.graph_pool = graph.pool()
             self.graphs[bs] = graph
-            torch.cuda.synchronize()
+            self.graph_api.synchronize()
             reset_context()
 
         # 保存操作句柄
@@ -453,3 +461,16 @@ class ModelRunner:
             block_tables=block_tables,
             outputs=outputs,
         )
+
+    def _select_graph_api(self):
+        npu = getattr(torch, "npu", None)
+        if (
+            npu is not None
+            and hasattr(npu, "CUDAGraph")
+            and hasattr(npu, "graph")
+            and hasattr(npu, "synchronize")
+        ):
+            return npu
+        if torch.cuda.is_available() and hasattr(torch.cuda, "CUDAGraph"):
+            return torch.cuda
+        return None

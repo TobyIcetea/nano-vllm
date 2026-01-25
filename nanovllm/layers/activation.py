@@ -5,7 +5,6 @@ import torch.nn.functional as F
 
 # 对输入张量进行 SiLU 激活函数和乘法操作
 class SiluAndMul(nn.Module):
-
     def __init__(self):
         super().__init__()
 

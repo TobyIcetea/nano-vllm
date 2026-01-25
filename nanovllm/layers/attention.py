@@ -19,9 +19,7 @@ def store_kvcache(
     assert (
         G == cache_G and D == cache_D
     ), f"KV维度不匹配：输入(G={G},D={D})，缓存(G={cache_G},D={cache_D})"
-    assert slot_mapping.shape == (
-        N,
-    ), f"slot_mapping维度错误：期望(N,)，实际{slot_mapping.shape}"
+    assert slot_mapping.shape == (N,), f"slot_mapping维度错误：期望(N,)，实际{slot_mapping.shape}"
 
     # 1. 筛选有效slot（排除slot=-1的情况）
     valid_mask = slot_mapping != -1  # [N,] 布尔张量
@@ -113,9 +111,7 @@ class Attention(nn.Module):
         max_val = x.max().item()
         min_val = x.min().item()
         if max_val > 1e4 or min_val < -1e4:
-            logger.warning(
-                f"警告：{name}数值溢出（max={max_val:.2f}, min={min_val:.2f}）"
-            )
+            logger.warning(f"警告：{name}数值溢出（max={max_val:.2f}, min={min_val:.2f}）")
         return x
 
     def _prefill_attn(
@@ -278,9 +274,7 @@ class Attention(nn.Module):
         o = o.reshape(o.shape[0], -1)  # [seq_len/B, H, D] → [seq_len/B, H×D]
 
         expected_shape = (q.shape[0], self.num_heads * self.head_dim)
-        assert (
-            o.shape == expected_shape
-        ), f"输出形状错误：期望{expected_shape}，实际{o.shape}"
+        assert o.shape == expected_shape, f"输出形状错误：期望{expected_shape}，实际{o.shape}"
         self._check_numeric_range(o, "attention_output")
 
         return o

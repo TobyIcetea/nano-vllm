@@ -16,7 +16,6 @@ def apply_rotary_emb(
 
 # 使用 RoPE 进行旋转位置编码
 class RotaryEmbedding(nn.Module):
-
     def __init__(
         self,
         head_size: int,

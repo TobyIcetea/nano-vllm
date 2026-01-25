@@ -102,7 +102,12 @@ class LLMEngine:
     ) -> list[str]:
         # 是否启用 tqdm 进度条
         if use_tqdm:
-            pbar = tqdm(total=len(prompts), desc="Generating", dynamic_ncols=True)
+            pbar = tqdm(
+                total=len(prompts),
+                desc="Generating",
+                dynamic_ncols=True,
+                mininterval=2.0,
+            )
         # 参数对齐
         if not isinstance(sampling_params, list):
             sampling_params = [sampling_params] * len(prompts)

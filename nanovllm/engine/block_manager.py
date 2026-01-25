@@ -6,7 +6,6 @@ from nanovllm.engine.sequence import Sequence
 
 
 class Block:
-
     def __init__(self, block_id):
         # block_id 是 block 的唯一标识符，通常直接映射到 GPU 上预先分配好的 KV Cache 张量的索引
         self.block_id = block_id
@@ -31,7 +30,6 @@ class Block:
 
 
 class BlockManager:
-
     def __init__(self, num_blocks: int, block_size: int):
         self.block_size = block_size
 

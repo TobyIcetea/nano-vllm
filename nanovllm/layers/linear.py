@@ -10,7 +10,6 @@ def divide(numerator, denominator):
 
 
 class LinearBase(nn.Module):
-
     def __init__(
         self,
         input_size: int,
@@ -35,7 +34,6 @@ class LinearBase(nn.Module):
 
 
 class ReplicatedLinear(LinearBase):
-
     def __init__(
         self,
         input_size: int,
@@ -53,7 +51,6 @@ class ReplicatedLinear(LinearBase):
 
 # 将巨大的权重矩阵按「列」切分开，分给不同的 GPU 去存和算
 class ColumnParallelLinear(LinearBase):
-
     def __init__(
         self,
         input_size: int,
@@ -75,7 +72,6 @@ class ColumnParallelLinear(LinearBase):
 
 
 class MergedColumnParallelLinear(ColumnParallelLinear):
-
     def __init__(
         self,
         input_size: int,
@@ -97,7 +93,6 @@ class MergedColumnParallelLinear(ColumnParallelLinear):
 
 
 class QKVParallelLinear(ColumnParallelLinear):
-
     def __init__(
         self,
         hidden_size: int,
@@ -136,7 +131,6 @@ class QKVParallelLinear(ColumnParallelLinear):
 
 
 class RowParallelLinear(LinearBase):
-
     def __init__(
         self,
         input_size: int,
