@@ -326,6 +326,7 @@ class ModelRunner:
     def run_model(
         self, input_ids: torch.Tensor, positions: torch.Tensor, is_prefill: bool
     ):
+        logger.info(f"{'prefill' if is_prefill else 'decode'} execute tokens: {len(input_ids)}")
         if is_prefill or self.enforce_eager or input_ids.size(0) > 512:
             # Eager Mode
             # - prefill 阶段，因为 prefill 的输入的形状不固定，动态性比较强，不适合使用固定形状的 Graph
