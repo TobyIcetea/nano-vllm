@@ -28,16 +28,16 @@ class ModelRunner:
         self.graph_api = self._select_graph_api()
         if self.graph_api is None:
             self.enforce_eager = True
-
+        torch.npu.set_device(rank)
         dist.init_process_group(
             "hccl", "tcp://localhost:2333", world_size=self.world_size, rank=rank
         )
-        torch.npu.set_device(rank)
         default_dtype = torch.get_default_dtype()
         torch.set_default_dtype(hf_config.torch_dtype)
         torch.set_default_device("npu")
         self.model = Qwen3ForCausalLM(hf_config)
         load_model(self.model, config.model)
+        self.model = self.model.npu()
         self.sampler = Sampler()
         self.warmup_model()
         self.allocate_kv_cache()
