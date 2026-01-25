@@ -1,5 +1,6 @@
 import os
 from nanovllm import LLM, SamplingParams
+from nanovllm.utils.logger import logger
 from transformers import AutoTokenizer
 
 
@@ -12,6 +13,8 @@ def main():
     prompts = [
         "introduce yourself",
         "list all prime numbers within 100",
+        "写一个简单的 python 函数，实现计算两个数的和",
+        "我有一个狗，它",
     ]
     prompts = [
         tokenizer.apply_chat_template(
@@ -24,9 +27,9 @@ def main():
     outputs = llm.generate(prompts, sampling_params)
 
     for prompt, output in zip(prompts, outputs):
-        print("\n")
-        print(f"Prompt: {prompt!r}")
-        print(f"Completion: {output['text']!r}")
+        logger.info("\n")
+        logger.info(f"Prompt: {prompt!r}")
+        logger.info(f"Completion: {output['text']!r}")
 
 
 if __name__ == "__main__":
