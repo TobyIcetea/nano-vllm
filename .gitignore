@@ -6,6 +6,7 @@ __pycache__/
 # Ascend
 kernel_meta
 fusion_result.json
+extra-info/
 
 # C extensions
 *.so

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from nanovllm.utils.context import get_context
 from nanovllm.utils.logger import logger
+import torch_npu
 
 
 def store_kvcache(
@@ -168,57 +169,40 @@ class Attention(nn.Module):
     def _decode_attn(
         self, q: torch.Tensor, context_lens, block_tables, device: torch.device
     ):
-        batch_size = q.shape[0]
-        q = q.reshape(batch_size, self.num_heads, self.head_dim)  # [B, H, D]
-        self._check_numeric_range(q, "decode_q")
-        outputs = []
+        # 1. 升维 [B, H, 1, D]
+        q = q.unsqueeze(2) 
 
-        for i in range(batch_size):
-            # 验证缓存索引（关键：避免读取其他序列的KV）
-            block_ids = block_tables[i][block_tables[i] != -1]
-            history_len = context_lens[i].item()
-            if len(block_ids) == 0 and history_len > 0:
-                logger.warning(f"警告：序列{i}无缓存块，但历史长度={history_len}")
-                history_len = 0
+        # 2. 类型转换
+        if block_tables.dtype != torch.int32:
+            block_tables = block_tables.to(torch.int32)
+            
+        # 3. ★关键修正：准备 actual_seq_lengths
+        # context_lens 记录了每个序列当前的真实 Token 数量
+        # NPU 算子需要它是 int64 类型 (long)
+        if context_lens.dtype != torch.int64:
+            actual_lens = context_lens.to(torch.int64)
+        else:
+            actual_lens = context_lens
 
-            # 读取历史KV
-            k_history_list = []
-            v_history_list = []
-            for block_idx in block_ids:
-                if block_idx >= self.k_cache.shape[0]:
-                    logger.warning(f"警告：序列{i}的块索引{block_idx}超出缓存范围")
-                    continue
-                k_block = self.k_cache[block_idx]  # [block_size, G, D]
-                v_block = self.v_cache[block_idx]
-                k_history_list.append(k_block)
-                v_history_list.append(v_block)
+        # 4. 调用算子
+        out = torch_npu.npu_incre_flash_attention(
+            query=q,
+            key=self.k_cache,
+            value=self.v_cache,
+            num_heads=self.num_heads,
+            num_key_value_heads=self.num_kv_heads,
+            scale_value=self.scale,
+            input_layout="BNSD",
+            block_table=block_tables,
+            block_size=self.kvcache_block_size,
+            
+            # ★★★ 加上这一行，这就是“护栏” ★★★
+            # 告诉算子：第 i 个序列，你只能读 block_table[i] 的前 actual_lens[i] 个数据
+            # 注意：这里传的是 token 长度，算子内部会自动换算成 block 数量
+            actual_seq_lengths=actual_lens, 
+        )
 
-            if not k_history_list:
-                k_history = torch.zeros(
-                    (0, self.num_kv_heads, self.head_dim), device=device, dtype=q.dtype
-                )
-                v_history = torch.zeros_like(k_history)
-            else:
-                k_history = torch.cat(k_history_list, dim=0)[:history_len]  # [Lk, G, D]
-                v_history = torch.cat(v_history_list, dim=0)[:history_len]
-            self._check_numeric_range(k_history, f"decode_k_history_{i}")
-
-            # GQA扩展
-            k_history = repeat_kv(k_history, self.num_rep)  # [Lk, H, D]
-            v_history = repeat_kv(v_history, self.num_rep)  # [Lk, H, D]
-
-            # 注意力计算
-            q_i = q[i].unsqueeze(0).unsqueeze(-2)  # [1, H, 1, D]
-            k_trans = k_history.transpose(0, 1).transpose(-2, -1)  # [H, D, Lk]
-            attn = torch.matmul(q_i, k_trans) * self.scale  # [1, H, 1, Lk]
-            attn = F.softmax(attn.clamp(-100, 100), dim=-1)
-
-            # 加权求和
-            out_i = torch.matmul(attn, v_history.transpose(0, 1))  # [1, H, 1, D]
-            out_i = out_i.squeeze(-2)  # [1, H, D]
-            outputs.append(out_i)
-
-        return torch.cat(outputs, dim=0)
+        return out.reshape(q.shape[0], -1)
 
     def _ensure_cache_initialized(
         self, context, device: torch.device, dtype: torch.dtype
