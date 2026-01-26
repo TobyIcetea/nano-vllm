@@ -1,25 +1,17 @@
-<p align="center">
-<img width="300" src="assets/logo.png">
-</p>
+# Nano-vLLM-Ascend
 
-<p align="center">
-<a href="https://trendshift.io/repositories/15323" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15323" alt="GeeeekExplorer%2Fnano-vllm | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-# Nano-vLLM
-
-A lightweight vLLM implementation built from scratch.
+A lightweight vLLM implementation for Ascend platform.
 
 ## Key Features
 
 * 🚀 **Fast offline inference** - Comparable inference speeds to vLLM
 * 📖 **Readable codebase** - Clean implementation in ~ 1,200 lines of Python code
-* ⚡ **Optimization Suite** - Prefix caching, Tensor Parallelism, Torch compilation, CUDA graph, etc.
+* ⚡ **Optimization Suite** - Prefix caching, Tensor Parallelism, NPU graph, etc.
 
 ## Installation
 
 ```bash
-pip install git+https://github.com/GeeeekExplorer/nano-vllm.git
+pip install git+https://github.com/TobyMint/nano-vllm-ascend.git
 ```
 
 ## Model Download
@@ -33,12 +25,14 @@ huggingface-cli download --resume-download Qwen/Qwen3-0.6B \
 
 ## Quick Start
 
+首先在环境中部署 Ascend NPU 开发环境，参考 [install-ascend.md](install-ascend.md)。
+
 See `example.py` for usage. The API mirrors vLLM's interface with minor differences in the `LLM.generate` method:
 ```python
 from nanovllm import LLM, SamplingParams
 llm = LLM("/YOUR/MODEL/PATH", enforce_eager=True, tensor_parallel_size=1)
 sampling_params = SamplingParams(temperature=0.6, max_tokens=256)
-prompts = ["Hello, Nano-vLLM."]
+prompts = ["Hello, Nano-vLLM-Ascend."]
 outputs = llm.generate(prompts, sampling_params)
 outputs[0]["text"]
 ```
@@ -48,9 +42,9 @@ outputs[0]["text"]
 See `bench.py` for benchmark.
 
 **Test Configuration:**
-- Hardware: RTX 4070 Laptop (8GB)
+- Hardware: Ascend 910B
 - Model: Qwen3-0.6B
-- Total Requests: 256 sequences
+- Total Requests: 10 sequences
 - Input Length: Randomly sampled between 100–1024 tokens
 - Output Length: Randomly sampled between 100–1024 tokens
 
@@ -59,8 +53,5 @@ See `bench.py` for benchmark.
 |----------------|-------------|----------|-----------------------|
 | vLLM           | 133,966     | 98.37    | 1361.84               |
 | Nano-vLLM      | 133,966     | 93.41    | 1434.13               |
+| Nano-vLLM-Ascend | 4,805     | 532.26    | 9.03               |
 
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=GeeeekExplorer/nano-vllm&type=Date)](https://www.star-history.com/#GeeeekExplorer/nano-vllm&Date)
