@@ -89,10 +89,8 @@ class Attention(nn.Module):
             self.num_heads % self.num_kv_heads == 0
         ), f"Q头数{num_heads}必须是KV头数{num_kv_heads}的整数倍"
         self.num_rep = self.num_heads // self.num_kv_heads
-        # 仅内部计算scale，删除外部传入（避免重复缩放）
-        self.scale = 1.0 / torch.sqrt(
-            torch.tensor(self.head_dim, dtype=torch.float32)
-        ).to(torch.bfloat16)
+        import math
+        self.scale = 1.0 / math.sqrt(float(self.head_dim))
 
         # 初始化KV缓存（4维）
         self.k_cache = torch.tensor([])
@@ -130,26 +128,22 @@ class Attention(nn.Module):
         for i in range(batch_size):
             start_q, end_q = cu_seqlens_q[i].item(), cu_seqlens_q[i + 1].item()
             start_k, end_k = cu_seqlens_k[i].item(), cu_seqlens_k[i + 1].item()
-            q_seq = q[start_q:end_q]  # [Lq, H, D]
-            k_seq = k[start_k:end_k]  # [Lk, G, D]
-            v_seq = v[start_k:end_k]  # [Lk, G, D]
+            q_seq = q[start_q:end_q]
+            k_seq = k[start_k:end_k]
+            v_seq = v[start_k:end_k]
 
-            # 数值范围检查（避免QKV本身乱码）
             self._check_numeric_range(q_seq, f"prefill_q_seq_{i}")
             self._check_numeric_range(k_seq, f"prefill_k_seq_{i}")
 
-            # GQA扩展
-            k_seq = repeat_kv(k_seq, self.num_rep)  # [Lk, H, D]
-            v_seq = repeat_kv(v_seq, self.num_rep)  # [Lk, H, D]
+            k_seq = repeat_kv(k_seq, self.num_rep)
+            v_seq = repeat_kv(v_seq, self.num_rep)
 
-            # 注意力计算（避免重复转置，提升效率）
-            q_trans = q_seq.transpose(0, 1)  # [H, Lq, D]
-            k_trans = k_seq.transpose(0, 1).transpose(-2, -1)  # [H, D, Lk]
+            q_trans = q_seq.transpose(0, 1)
+            k_trans = k_seq.transpose(0, 1).transpose(-2, -1)
 
-            attn = torch.matmul(q_trans, k_trans) * self.scale  # [H, Lq, Lk]
-            self._check_numeric_range(attn, f"prefill_attn_{i}")  # 检查注意力分数
+            attn = torch.matmul(q_trans, k_trans) * self.scale
+            self._check_numeric_range(attn, f"prefill_attn_{i}")
 
-            # 因果掩码（适配Lq≠Lk场景）
             Lq, Lk = q_seq.shape[0], k_seq.shape[0]
             mask = torch.triu(
                 torch.full((Lq, Lk), float("-inf"), device=device, dtype=attn.dtype),
@@ -157,10 +151,9 @@ class Attention(nn.Module):
             )
             attn = attn + mask.unsqueeze(0)
 
-            # Softmax（限制数值范围，避免溢出）
-            attn = F.softmax(attn.clamp(-100, 100), dim=-1)  # 裁剪极端值
-            out_seq = torch.matmul(attn, v_seq.transpose(0, 1))  # [H, Lq, D]
-            out_seq = out_seq.transpose(0, 1)  # [Lq, H, D]
+            attn = F.softmax(attn.clamp(-100, 100), dim=-1)
+            out_seq = torch.matmul(attn, v_seq.transpose(0, 1))
+            out_seq = out_seq.transpose(0, 1)
 
             outputs.append(out_seq)
 
@@ -169,40 +162,48 @@ class Attention(nn.Module):
     def _decode_attn(
         self, q: torch.Tensor, context_lens, block_tables, device: torch.device
     ):
-        # 1. 升维 [B, H, 1, D]
-        q = q.unsqueeze(2) 
+        if q.numel() == 0:
+            return q
 
-        # 2. 类型转换
+        if block_tables is None or context_lens is None:
+            return q
+
         if block_tables.dtype != torch.int32:
             block_tables = block_tables.to(torch.int32)
-            
-        # 3. ★关键修正：准备 actual_seq_lengths
-        # context_lens 记录了每个序列当前的真实 Token 数量
-        # NPU 算子需要它是 int64 类型 (long)
-        if context_lens.dtype != torch.int64:
-            actual_lens = context_lens.to(torch.int64)
-        else:
-            actual_lens = context_lens
 
-        # 4. 调用算子
+        batch_size = q.shape[0]
+        q_4d = q.view(batch_size, self.num_heads, 1, self.head_dim)
+
+        actual_seq_lengths = context_lens.to(torch.int64).tolist()
+
+        k_cache = self.k_cache
+        v_cache = self.v_cache
+
+        if k_cache.dim() != 4 or v_cache.dim() != 4:
+            return q
+
+        k_cache = k_cache.permute(0, 2, 1, 3).contiguous()
+        v_cache = v_cache.permute(0, 2, 1, 3).contiguous()
+
+        block_tables_clamped = block_tables
+        if (block_tables_clamped < 0).any():
+            block_tables_clamped = block_tables_clamped.clone()
+            block_tables_clamped[block_tables_clamped < 0] = 0
+
         out = torch_npu.npu_incre_flash_attention(
-            query=q,
-            key=self.k_cache,
-            value=self.v_cache,
+            q_4d,
+            k_cache,
+            v_cache,
+            actual_seq_lengths=actual_seq_lengths,
+            block_table=block_tables_clamped,
             num_heads=self.num_heads,
             num_key_value_heads=self.num_kv_heads,
             scale_value=self.scale,
             input_layout="BNSD",
-            block_table=block_tables,
             block_size=self.kvcache_block_size,
-            
-            # ★★★ 加上这一行，这就是“护栏” ★★★
-            # 告诉算子：第 i 个序列，你只能读 block_table[i] 的前 actual_lens[i] 个数据
-            # 注意：这里传的是 token 长度，算子内部会自动换算成 block 数量
-            actual_seq_lengths=actual_lens, 
         )
 
-        return out.reshape(q.shape[0], -1)
+        return out.view(batch_size, self.num_heads, self.head_dim)
 
     def _ensure_cache_initialized(
         self, context, device: torch.device, dtype: torch.dtype

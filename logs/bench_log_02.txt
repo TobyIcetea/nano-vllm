@@ -1,0 +1,47 @@
+`torch_dtype` is deprecated! Use `dtype` instead!
+2026-01-26 18:27:05,877 - INFO - model_runner.py:337 - prefill execute tokens: 16384
+Generating:   0%|                                              | 0/1 [00:02<?, ?it/s, Prefill=14tok/s, Decode=4tok/s]2026-01-26 18:27:10,925 - INFO - model_runner.py:337 - decode execute tokens: 1
+Generating:   0%|                                              | 0/1 [00:07<?, ?it/s, Prefill=14tok/s, Decode=4tok/s]2026-01-26 18:27:16,039 - INFO - model_runner.py:337 - decode execute tokens: 1
+Generating:   0%|                                              | 0/1 [00:12<?, ?it/s, Prefill=14tok/s, Decode=4tok/s]2026-01-26 18:27:21,186 - INFO - model_runner.py:337 - decode execute tokens: 1
+Generating: 100%|██████████████████████████████████████| 1/1 [00:14<00:00, 14.90s/it, Prefill=14tok/s, Decode=4tok/s]
+2026-01-26 18:27:26,263 - INFO - model_runner.py:337 - decode execute tokens: 10
+2026-01-26 18:27:31,326 - INFO - model_runner.py:337 - decode execute tokens: 10
+2026-01-26 18:27:36,398 - INFO - model_runner.py:337 - decode execute tokens: 10
+2026-01-26 18:27:41,450 - INFO - model_runner.py:337 - decode execute tokens: 10
+2026-01-26 18:27:46,476 - INFO - model_runner.py:337 - decode execute tokens: 10
+2026-01-26 18:27:51,509 - INFO - model_runner.py:337 - decode execute tokens: 10
+2026-01-26 18:27:56,740 - INFO - model_runner.py:337 - decode execute tokens: 10
+2026-01-26 18:28:01,917 - INFO - model_runner.py:337 - decode execute tokens: 8
+2026-01-26 18:28:07,150 - INFO - model_runner.py:337 - decode execute tokens: 8
+2026-01-26 18:28:12,348 - INFO - model_runner.py:337 - decode execute tokens: 7
+2026-01-26 18:28:17,549 - INFO - model_runner.py:337 - decode execute tokens: 7
+2026-01-26 18:28:22,551 - INFO - model_runner.py:337 - decode execute tokens: 7
+2026-01-26 18:28:27,785 - INFO - model_runner.py:337 - decode execute tokens: 7
+2026-01-26 18:28:32,995 - INFO - model_runner.py:337 - decode execute tokens: 7
+2026-01-26 18:28:38,181 - INFO - model_runner.py:337 - decode execute tokens: 7
+2026-01-26 18:28:43,346 - INFO - model_runner.py:337 - decode execute tokens: 7
+2026-01-26 18:28:48,566 - INFO - model_runner.py:337 - decode execute tokens: 6
+2026-01-26 18:28:53,776 - INFO - model_runner.py:337 - decode execute tokens: 6
+2026-01-26 18:28:58,965 - INFO - model_runner.py:337 - decode execute tokens: 6
+2026-01-26 18:29:04,212 - INFO - model_runner.py:337 - decode execute tokens: 6
+2026-01-26 18:29:09,366 - INFO - model_runner.py:337 - decode execute tokens: 6
+2026-01-26 18:29:14,492 - INFO - model_runner.py:337 - decode execute tokens: 6
+2026-01-26 18:29:19,681 - INFO - model_runner.py:337 - decode execute tokens: 5
+2026-01-26 18:29:24,879 - INFO - model_runner.py:337 - decode execute tokens: 5
+2026-01-26 18:29:29,984 - INFO - model_runner.py:337 - decode execute tokens: 4
+2026-01-26 18:29:35,183 - INFO - model_runner.py:337 - decode execute tokens: 4
+2026-01-26 18:29:40,392 - INFO - model_runner.py:337 - decode execute tokens: 4
+2026-01-26 18:29:45,610 - INFO - model_runner.py:337 - decode execute tokens: 3
+2026-01-26 18:29:50,825 - INFO - model_runner.py:337 - decode execute tokens: 3
+2026-01-26 18:29:56,045 - INFO - model_runner.py:337 - decode execute tokens: 3
+2026-01-26 18:30:01,253 - INFO - model_runner.py:337 - decode execute tokens: 3
+2026-01-26 18:30:06,492 - INFO - model_runner.py:337 - decode execute tokens: 3
+2026-01-26 18:30:11,693 - INFO - model_runner.py:337 - decode execute tokens: 3
+2026-01-26 18:30:16,857 - INFO - model_runner.py:337 - decode execute tokens: 2
+2026-01-26 18:30:22,016 - INFO - model_runner.py:337 - decode execute tokens: 2
+2026-01-26 18:30:27,184 - INFO - model_runner.py:337 - decode execute tokens: 1
+2026-01-26 18:30:32,374 - INFO - model_runner.py:337 - decode execute tokens: 1
+2026-01-26 18:30:37,557 - INFO - model_runner.py:337 - decode execute tokens: 1
+2026-01-26 18:30:42,732 - INFO - model_runner.py:337 - decode execute tokens: 1
+2026-01-26 18:30:47,886 - INFO - model_runner.py:337 - decode execute tokens: 1
+2026-01-26 18:30:51,920 - INFO - bench.py:29 - Total: 4805tok, Time: 208.72s, Throughput: 23.02tok/s
