@@ -15,7 +15,7 @@ conda activate ai-infra
 pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
 pip install torch-npu==2.5.1
 pip install "numpy<2.0.0"
-pip install decorator scipy sympy cffi pyyaml pathlib2 psutil protobuf attrs
+pip install decorator scipy sympy cffi pyyaml pathlib2 psutil protobuf attrs transformers xxhash
 ```
 
 ### 3. 使用脚本测试 NPU 是否可用
